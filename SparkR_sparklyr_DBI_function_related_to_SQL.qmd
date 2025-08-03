@@ -14,13 +14,35 @@ Databricks deprecated SparkR using which I wrote more than 150k lines of code. T
 
 - sparkR::sql() can be used for parallel tasks which is essential for big data.
 
-- sparklyr::spark_sql() is the equivalent one of sparkR::sql().
+-sparklyr::sdf_sql() does not work for DDL commands.
 
 - dplyr::tbl(sc, dplyr::sql()) is good for select operation in SQL or dplyr equivalent operations excellent for pipe operation %>% but it does not work for create or replace table etc.
 
 - DBI::dbExecute() works equivalent to sparkR:sql() or sparklyr::spark_sql() however, it is for sequential tasks but not for parallel work. So, when I ran code parallelly in Databricks, it has the error of race condition.
 
-Now I use sparklyr::spark_sql for SQL code within R.
+I’m working on Databricks, which has deprecated the sparkR package and recommends using sparklyr. While transitioning, I’ve encountered a major limitation:
 
-Bye bye SparkR!! I love you but somebody else does not like you and make you a legacy package.
+sparklyr::sdf_sql() and dplyr::sql() are designed for SELECT queries only — not for DDL commands like CREATE OR REPLACE TABLE.
+
+DBI::dbExecute(sc, ...) can handle DDL, but it is not safe in parallel workflows. When I launch three parallel tasks (e.g., cv11, cv12, and cv13), each executing a CREATE OR REPLACE TABLE command, Databricks throws path overlap errors — classic race conditions.
+
+sparkR::sql() works perfectly here — it’s thread-safe, and handles DDL well in parallel. But since SparkR is deprecated, I want to find a better long-term alternative.
+
+I've tried:
+
+sparklyr::invoke() to access Spark’s JVM backend. It works for DDL, but comes with side effects — for example, built-in functions like REGEXP_SUBSTR() fail due to an incorrect session context, breaking compatibility with other Spark SQL features.
+
+Other options:
+
+Writing %sql cells in Databricks Notebooks is safe and handles DDL — but this doesn’t integrate well into R scripts or R-based pipelines.
+
+My question:
+👉 Is there any reliable method or function (in sparklyr, dplyr, or elsewhere in the R ecosystem) that supports running DDL like CREATE OR REPLACE TABLE safely in parallel, within an R context on Databricks?
+
+This gap is frustrating because parallelism is core to big data, and the lack of parallel-safe DDL support in sparklyr limits its usefulness in real production pipelines. At present, I still rely on SparkR::sql() because I have over 150k lines of R code and parallel execution is essential.
+
+It would be great if sparklyr could introduce a function like spark_sql() or support parallel-safe DDL operations directly.
+
+Thanks in advance for any insight, workarounds, or best practices!
+
 
