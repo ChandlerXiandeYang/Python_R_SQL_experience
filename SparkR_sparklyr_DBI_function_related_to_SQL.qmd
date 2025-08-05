@@ -7,6 +7,95 @@ editor: visual
 ---
 library(sparklyr)
 library(dplyr)
+library(glue)
+library(tibble)
+
+# Connect to Databricks
+sc <- spark_connect(method = "databricks")
+
+# Load Spark table
+alpdesetall_signet_spark <- tbl(sc, "infolabs_dev.cv_processed.alpdesetall_signet")
+
+# Get equipment with 'mon' in Swab_Reason
+equipment_with_mon_reason_df <- alpdesetall_signet_spark %>%
+  filter(grepl("mon", tolower(Swab_Reason))) %>%
+  distinct(DataSetName) %>%
+  collect()
+
+equipment_with_mon_reason_vector <- equipment_with_mon_reason_df$DataSetName
+
+# Write Stage 3 table
+LPDE_Signet_Stage3 <- alpdesetall_signet_spark %>%
+  filter(DataSetName %in% equipment_with_mon_reason_vector)
+
+spark_write_table(
+  LPDE_Signet_Stage3,
+  name = "infolabs_dev.cv_processed.LPDE_Signet_Stage3",
+  mode = "overwrite",
+  temporary = FALSE
+)
+
+# Write Stage 3 equipment list
+LPDE_Signet_Stage3_Equipment <- tibble(equipment = equipment_with_mon_reason_vector)
+
+LPDE_Signet_Stage3_Equipment_spark <- copy_to(sc, LPDE_Signet_Stage3_Equipment, "LPDE_Signet_Stage3_Equipment_temp", overwrite = TRUE)
+
+spark_write_table(
+  LPDE_Signet_Stage3_Equipment_spark,
+  name = "infolabs_dev.cv_processed.LPDE_Signet_Stage3_Equipment",
+  mode = "overwrite",
+  temporary = FALSE
+)
+
+# Use pure SQL to avoid mutate/sql() issue in Stage 2
+excluded_equipment_sql <- paste0("'", paste(equipment_with_mon_reason_vector, collapse = "','"), "'")
+
+query <- glue("
+SELECT 
+  DataSetName
+FROM (
+  SELECT 
+    DataSetName,
+    MAX(CAST(regexp_extract(CleaningEvent, '\\\\d+', 0) AS INT)) AS max_event
+  FROM infolabs_dev.cv_processed.alpdesetall_signet
+  WHERE DataSetName NOT IN ({excluded_equipment_sql})
+  GROUP BY DataSetName
+)
+WHERE max_event >= 10
+")
+
+equipment_for_stage2_df <- DBI::dbGetQuery(sc, query)
+equipment_for_stage2_vector <- equipment_for_stage2_df$DataSetName
+
+# Write Stage 2 table
+LPDE_Signet_Stage2 <- alpdesetall_signet_spark %>%
+  filter(DataSetName %in% equipment_for_stage2_vector)
+
+spark_write_table(
+  LPDE_Signet_Stage2,
+  name = "infolabs_dev.cv_processed.LPDE_Signet_Stage2",
+  mode = "overwrite",
+  temporary = FALSE
+)
+
+# Write Stage 2 equipment list
+LPDE_Signet_Stage2_Equipment <- tibble(equipment = equipment_for_stage2_vector)
+
+LPDE_Signet_Stage2_Equipment_spark <- copy_to(sc, LPDE_Signet_Stage2_Equipment, "LPDE_Signet_Stage2_Equipment_temp", overwrite = TRUE)
+
+spark_write_table(
+  LPDE_Signet_Stage2_Equipment_spark,
+  name = "infolabs_dev.cv_processed.LPDE_Signet_Stage2_Equipment",
+  mode = "overwrite",
+  temporary = FALSE
+)
+
+message("✅ All tables written without mutate/sql warnings.")
+
+
+
+library(sparklyr)
+library(dplyr)
 library(tibble) # For creating local R tibbles if needed
 sc <- spark_connect(method = "databricks")
 alpdesetall_signet_spark <- tbl(sc, "infolabs_dev.cv_processed.alpdesetall_signet")
@@ -102,6 +191,7 @@ This gap is frustrating because parallelism is core to big data, and the lack of
 It would be great if sparklyr could introduce a function like spark_sql() or support parallel-safe DDL operations directly.
 
 Thanks in advance for any insight, workarounds, or best practices!
+
 
 
 
