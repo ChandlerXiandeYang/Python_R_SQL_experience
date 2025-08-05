@@ -5,7 +5,65 @@ author: Xiande Yang
 date: "2025-08-02"
 editor: visual
 ---
+library(sparklyr)
+library(dplyr)
+library(tibble) # For creating local R tibbles if needed
+sc <- spark_connect(method = "databricks")
+alpdesetall_signet_spark <- tbl(sc, "infolabs_dev.cv_processed.alpdesetall_signet")
+equipment_with_mon_reason_df <- alpdesetall_signet_spark %>%
+ filter(grepl("mon", tolower(Swab_Reason))) %>% # Removed fixed = TRUE
+ distinct(DataSetName) %>%
+ collect()
 
+equipment_with_mon_reason_vector <- equipment_with_mon_reason_df$DataSetName
+LPDE_Signet_Stage3_Equipment <- tibble(equipment = equipment_with_mon_reason_vector)
+LPDE_Signet_Stage3 <- alpdesetall_signet_spark %>%
+ filter(DataSetName %in% equipment_with_mon_reason_vector)
+
+spark_write_table(LPDE_Signet_Stage3,
+name = "infolabs_dev.cv_processed.LPDE_Signet_Stage3",
+mode = "overwrite", # Use "append" to add to existing table
+ temporary = FALSE) # Set to TRUE if you only need it for the current session
+
+
+LPDE_Signet_Stage3_Equipment_spark <- copy_to(sc, LPDE_Signet_Stage3_Equipment, "LPDE_Signet_Stage3_Equipment_temp", overwrite = TRUE)
+
+spark_write_table(LPDE_Signet_Stage3_Equipment_spark,
+name = "infolabs_dev.cv_processed.LPDE_Signet_Stage3_Equipment",
+ mode = "overwrite",
+temporary = FALSE)
+
+equipment_to_exclude_from_stage2 <- equipment_with_mon_reason_vector
+
+equipment_for_stage2_df <- alpdesetall_signet_spark %>%
+ filter(!(DataSetName %in% equipment_to_exclude_from_stage2)) %>% # Exclude entire DataSetNames if any record has "mon"
+mutate(cleaning_event_num = as.numeric(regexp_extract(CleaningEvent, "\\\\d+", 0))) %>% # Extracts numbers from CleaningEvent
+ group_by(DataSetName) %>%
+ summarise(max_cleaning_event = max(cleaning_event_num, na.rm = TRUE)) %>% # Find max cleaning event number per equipment
+ filter(max_cleaning_event >= 10) %>%
+ distinct(DataSetName) %>%
+ collect() # Bring distinct DataSetNames to R as a local data frame
+
+
+# Convert the distinct DataSetName column to a character vector for easier filtering
+
+equipment_for_stage2_vector <- equipment_for_stage2_df$DataSetName
+LPDE_Signet_Stage2_Equipment <- tibble(equipment = equipment_for_stage2_vector)
+message("LPDE_Signet_Stage2_Equipment (local R tibble) created.")
+
+
+LPDE_Signet_Stage2 <- alpdesetall_signet_spark %>%
+filter(DataSetName %in% equipment_for_stage2_vector)
+spark_write_table(LPDE_Signet_Stage2,
+ name = "infolabs_dev.cv_processed.LPDE_Signet_Stage2",
+ mode = "overwrite",
+ temporary = FALSE)
+
+LPDE_Signet_Stage2_Equipment_spark <- copy_to(sc, LPDE_Signet_Stage2_Equipment, "LPDE_Signet_Stage2_Equipment_temp", overwrite = TRUE)
+spark_write_table(LPDE_Signet_Stage2_Equipment_spark,
+name = "infolabs_dev.cv_processed.LPDE_Signet_Stage2_Equipment",
+mode = "overwrite",
+ temporary = FALSE)
 # SparkR, DBI, and sparklyr
 
 Databricks deprecated SparkR using which I wrote more than 150k lines of code. This really made me upset. However, I had to change to sparklyr.
@@ -44,5 +102,6 @@ This gap is frustrating because parallelism is core to big data, and the lack of
 It would be great if sparklyr could introduce a function like spark_sql() or support parallel-safe DDL operations directly.
 
 Thanks in advance for any insight, workarounds, or best practices!
+
 
 
