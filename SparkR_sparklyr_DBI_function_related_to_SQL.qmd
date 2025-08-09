@@ -1,3 +1,362 @@
+# Connect to Spark via Databricks
+sc <- sparklyr::spark_connect(method = "databricks")
+qmd_path <- "/Workspace/Users/xyang1@apotex.com/CV_SARWAS_LPDE/CV_SARWAS_LPDE_Templates/_cv08_1_Databricks_Low_PDE_Automation_Stage3.qmd"
+output_folder <- "/Workspace/Users/xyang1@apotex.com/CV_SARWAS_LPDE/Reports_and_Data_Stage3_LPDE/"
+data_folder <- "infolabs_dev"
+LPDE_Weston_Stage3_Equipment <- DBI::dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Weston_Stage3_Equipment")[, 1]
+LPDE_Signet_Stage3_Equipment <- DBI::dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Signet_Stage3_Equipment")[, 1]
+LPDE_Garyray_Stage3_Equipment <- DBI::dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Garyray_Stage3_Equipment")[, 1]
+LPDE_Etobicoke_Stage3_Equipment <- DBI::dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Etobicoke_Stage3_Equipment")[, 1]
+LPDE_Signet_Etobicoke <- c(LPDE_Signet_Stage3_Equipment, LPDE_Weston_Stage3_Equipment, LPDE_Garyray_Stage3_Equipment, LPDE_Etobicoke_Stage3_Equipment)
+ui <- fluidPage(
+  titlePanel("Input Time Period for Report Generation"),
+  sidebarLayout(
+    sidebarPanel(
+      dateInput("Time_Period_Initial", "Start Date", value=Sys.Date()-10000),
+      dateInput("Time_Period_End", "End Date", value=Sys.Date()),
+      actionButton("submit_time", "Submit Dates")
+    ),
+    mainPanel(
+      verbatimTextOutput("time_message")
+    )
+  )
+)
+server <- function(input, output, session) {
+  observeEvent(input$submit_time, {
+    Time_Period_Initial <- as.character(input$Time_Period_Initial)
+    Time_Period_End <- as.character(input$Time_Period_End)
+    if (as.Date(Time_Period_Initial) > as.Date(Time_Period_End)) {
+      output$time_message <- renderText("Error: Start date cannot be later than the end date.")
+      return()
+    }
+   output$time_message <- renderText(paste("Selected Time Period: ", Time_Period_Initial, " to ", Time_Period_End))
+    if (!file.exists(qmd_path)) {
+      output$time_message <- renderText(paste("Error: Quarto input file not found at", qmd_path))
+      return()
+    }
+    for (Report_Writing_Identifier in LPDE_Signet_Etobicoke) {
+      params <- list(
+        data_folder = data_folder,
+        Report_Writing_Identifier = Report_Writing_Identifier,
+        Time_Period_Initial = Time_Period_Initial,
+        Time_Period_End = Time_Period_End
+      )
+    output_file_name <- paste0(Report_Writing_Identifier, ".pdf")
+    # Quarto will save the output file next to the input file by default.
+    default_output_file <- file.path(dirname(qmd_path), "_cv08_1_Databricks_Low_PDE_Automation_Stage3.pdf")
+    # Define the final path where the file should be moved
+    output_full_path <- file.path(output_folder, output_file_name)
+      
+      tryCatch({
+        # Render the Quarto document without specifying the output path,
+        # which will save it to the default location.
+        quarto::quarto_render(
+          input = qmd_path,
+          output_format = "pdf",
+          execute_params = params
+        )
+      # After rendering, rename/move the file to the desired output folder and name.
+        if (file.exists(default_output_file)) {
+          file.rename(default_output_file, output_full_path)
+        } else {
+          stop("The default output file was not created by Quarto.")
+        }
+      }, error = function(e) {
+        output$time_message <- renderText(paste("Error generating report for", Report_Writing_Identifier, ":", e$message))
+        return()
+      })
+    }
+  output$time_message <- renderText(paste("All reports have been generated and saved to", output_folder))
+  })
+}
+shinyApp(ui = ui, server = server)
+
+
+
+_cv08_1_Databricks_Low_PDE_Automation_Stage3.qmd file:
+
+---
+format:
+  pdf:
+    documentclass: article
+    keep-tex: false
+    number-sections: true
+    toc: true
+    toc-depth: 4
+    latex-engine: xelatex
+    geometry: [left=2cm, right=2cm, top=2cm, bottom=2cm]
+header-includes:
+  - \usepackage{caption}
+  - \captionsetup[table]{labelformat=simple, labelsep=colon,textfont=bf}
+  - \captionsetup[figure]{labelformat=simple, labelsep=colon, textfont=bf}
+  - \usepackage{hyperref}
+  - \usepackage{ragged2e}
+  - \usepackage{fancyhdr}
+  - \pagestyle{empty}
+  - \fancyhf{}
+  - \usepackage{colortbl}
+  - \usepackage{tabu}
+  - \usepackage{float}
+  - \floatplacement{table}{H}
+  - \floatplacement{figure}{H}
+  - \floatplacement{figure}{!ht}
+  - \usepackage{longtable,booktabs}
+  - \pagenumbering{gobble}
+fontsize: 12pt
+bibliography: ["_references.bib"]
+biblio-style: apalike
+link-citations: true
+linkcolor: brown
+params:
+  Report_Writing_Identifier: "abc"
+  Time_Period_Initial: "2000-07-01"
+  Time_Period_End: "2025-08-04"
+  data_folder: "infolabs_dev"
+---
+
+\newpage
+\justifying
+
+```{r global_parameter_1}
+#| echo: false
+#| message: false
+#| warning: false
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE,  message = FALSE)
+```
+
+```{r package_installation}
+#| echo: false
+#| message: false
+#| warning: false
+#| results: hide
+options(repos = c(CRAN = "https://cloud.r-project.org/"))
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+library(devtools)
+packages <- list(
+AER = "1.2-13",    boot = "1.3-31",       chromote = "0.4.0", 
+DBI = "1.2.3",     DiagrammeR = "1.0.11", DiagrammeRsvg = "0.1", 
+dplyr = "1.1.4",   dunn.test = "1.3.6",   easyanova = "1.1.0", 
+gt = "0.11.0",     forcats = "1.0.0",     formattable = "0.2.1", 
+qcc = "2.7",       gridExtra = "2.3",     kableExtra = "1.4.0", 
+knitr = "1.48",    lubridate = "1.9.3",   ggplot2 = "3.5.1",
+lmtest = "0.9-40", openxlsx = "4.2.7.1",  odbc = "1.5.0", 
+lme4 = "1.1-35.5", quarto = "1.4.4",      reactlog="1.1.1", 
+rlang = "1.1.4",   rmarkdown = "2.28",    readxl = "1.3.1", 
+rsvg = "2.6.1",    shiny = "1.9.1",       stringr = "1.5.1", 
+tidyr = "1.3.1",   tinytex = "0.53",      VCA = "1.5.1",
+webshot2 = "0.1.1")
+
+install_and_load <- function(package, version) {
+  if (!requireNamespace(package, quietly = TRUE) || packageVersion(package) < version) {
+    install_version(package, version = as.character(version))
+  }
+  library(package, character.only = TRUE)
+}
+for (pkg in names(packages)) { install_and_load(pkg, packages[[pkg]]) }
+
+if (!requireNamespace("CleaningValidation", quietly = TRUE)) {
+    system("R CMD INSTALL /dbfs/FileStore/CleaningValidation_1_0_tar.gz")
+}
+library(CleaningValidation)
+
+tryCatch({
+  tinytex::tlmgr_repo("https://mirror.ctan.org/systems/texlive/tlnet")
+  
+}, error = function(e) {
+  tryCatch({
+    tinytex::tlmgr_repo("https://mirror.csclub.uwaterloo.ca/CTAN/")
+  }, error = function(e2) {
+    warning("Both tinytex mirrors failed. Proceeding with caution.")
+  })
+})
+
+tinytex::tlmgr_install(c("koma-script", "tabu", "environ", "colortbl", "pdflscape", "threeparttablex", "threeparttable", "makecell", "ragged2e", "lastpage", "multirow", "wrapfig", "ulem", "fancyhdr"))
+```
+
+```{r set_working_directory}
+#| results: hide
+library(DBI)
+library(odbc)
+library(SparkR)
+sparkR.session()
+Report_Writing_Identifier<-params$Report_Writing_Identifier
+data_folder<-params$data_folder
+#Time_Period_Initial <- as.Date(params$Time_Period_Initial)
+#Time_Period_End <- as.Date(params$Time_Period_End)
+
+ #conn1 <- DBI::dbConnect(
+  #  drv = odbc::databricks(),
+  #  httpPath = "/sql/1.0/warehouses/b2ef4b7a2c18fdcb",
+  # workspace = "adb-4117502575300068.8.azuredatabricks.net",
+  #  authMech = 11,
+  #  auth_flow = 2
+ # )
+#Report_Writing_Identifier<-"cl1032_varen_cremer_tablet_filler_girton_4100weston"
+#data_folder<-"infolabs_dev"
+#params$data_folder
+
+queries <- list(cv_dar= paste0("SELECT * FROM ", data_folder, ".cv_processed.lpde_signet_garyray_weston_etobicoke WHERE DataSetName='", Report_Writing_Identifier,"'"))
+#queries <- list(cv_dar= paste0("SELECT * FROM infolabs_dev.cv_processed.lpde_signet_garyray_weston_etobicoke WHERE DataSetName='", Report_Writing_Identifier,"'"))
+results_list <- list()
+results_list <- lapply(queries, function(query) {
+  tryCatch({
+    result <- SparkR::collect(SparkR::sql(query))
+     }, error = function(e) {
+     data.frame() 
+  })
+ })
+
+#results_list <- list()
+#results_list <- lapply(queries, function(query) {
+#  tryCatch({
+#    dbGetQuery(sc, query)
+#  }, error = function(e) {
+#    data.frame()  
+#  })
+#})
+```
+```{r set_working_directoryx}
+#| results: hide
+# Time_Period_Initial <- "2000-07-01"
+# Time_Period_End <- "2025-07-01"
+Time_Period_Initial <- params$Time_Period_Initial
+Time_Period_End <- params$Time_Period_End
+Time_Period_Initial <- as.POSIXct(paste(Time_Period_Initial, "00:00:00"), tz = "UTC")
+Time_Period_End <- as.POSIXct(paste(Time_Period_End, "23:59:59"), tz = "UTC")
+#Time_Period_Initial <- as.POSIXct(Time_Period_Initial, format = "%m/%d/%Y", tz = "UTC")
+#Time_Period_End <- as.POSIXct(Time_Period_End, format = "%m/%d/%Y", tz = "UTC")
+Eq_DAR1 <- as.data.frame(results_list$cv_dar)
+Eq_DAR1 <- Eq_DAR1[!tolower(gsub("[^a-zA-Z0-9]", "", Eq_DAR1$Swab_Reason)) %in% c("reswab"), ]
+#Eq_DAR1 <- Eq_DAR1[Eq_DAR1$Sampling_Date >=Time_Period_Initial & Eq_DAR1$Sampling_Date <=Time_Period_End, ]
+Eq_DAR <- Eq_DAR1[!tolower(Eq_DAR1$Classification) %in% c("proreoos", "nonprooos") & 
+  tolower(Eq_DAR1$Swab_Reason) != "reswab", ]
+Eq_DAR <- Eq_DAR[!is.na(Eq_DAR$DAR) & !is.na(Eq_DAR$USL) & !is.na(Eq_DAR$CleaningEvent), ]
+Eq_CAR<-data.frame()
+Eq_Mic<-data.frame()
+Eq_CAR1<-data.frame()
+Eq_Mic1<-data.frame()
+```
+
+```{r DAR_OOS_Reswab_table_4x}
+OOS_Reswab_df <- CleaningValidation::cv02_1_nonpro_oos_reswab(Eq_DAR1, Eq_CAR1, Eq_Mic1)
+```
+
+```{r DataTransformation}
+format_sop <- function(sop) {
+  return(paste("{", paste(sop, collapse = ", "), "}", sep = ""))
+}
+
+if (nrow(Eq_DAR) > 0) {
+  Eq_DAR <- CleaningValidation::cv01_dfclean(data=Eq_DAR, residue_col="DAR", cleaning_event_col="CleaningEvent", usl_col="USL")
+  clean_process_sop <- format_sop(Eq_DAR$Cleaning_Process_SOP[nrow(Eq_DAR)])
+  process_equipment <- Eq_DAR$Equipment[nrow(Eq_DAR)]
+  process_equipment <- sub("\\([^()]*\\)$", "", process_equipment)  
+  process_equipment <- gsub("&", "and", process_equipment) 
+  process_equipment <- gsub("-", "", process_equipment)
+  process_equipment <- gsub("[^a-zA-Z0-9,]", " ", process_equipment) 
+  process_equipment <- gsub("\\s+", " ", process_equipment)
+  process_equipment <- trimws(process_equipment)
+  process_site_address <- Eq_DAR$Site_Address[1]
+  process_Annual_Review_As_Per <- Eq_DAR$Annual_Review_As_Per[1]
+} else {
+    Eq_DAR <- data.frame()
+}
+
+fiscal_year <- ifelse(format(Time_Period_End, "%m") %in% c("01", "02", "03"),
+                      substr(format(Time_Period_End, "%Y"), 3, 4),
+                      substr(format(as.POSIXct(Time_Period_End) + 365*24*60*60, "%Y"), 3, 4))
+process_equipment1 <- sub("^[^_]+_[^_]+_[^_]+_", "", params$Report_Writing_Identifier)
+#process_equipment1 <- sub(".*cl[0-9]+_", "", params$Report_Writing_Identifier)  # Remove the initial "cl012" and its underscore
+process_equipment1 <- sub("_[^_]*$", "", process_equipment1)  # Remove the last underscore and characters following it
+process_equipment1 <- gsub("_", " ", process_equipment1)  # Replace remaining underscores with spaces
+# 
+# process_equipment <- sub("^[^_]+_[^_]+_", "", params$Report_Writing_Identifier)
+# #process_equipment <- sub("_[^_]*$", "", params$Report_Writing_Identifier)
+# process_equipment <- gsub("_", " ", process_equipment)
+# process_equipment <- toupper(process_equipment)
+
+if (nrow(Eq_DAR) > 0) {
+dynamic_title <- toupper(paste0("CV FY", fiscal_year, " Low PDE Annual Statistical Report for ", Eq_DAR$Molecule[1], " on ", process_equipment,   " at ", Eq_DAR$Site_Address[nrow(Eq_DAR)]))
+} else {
+dynamic_title <- "EMPTY DATA HAS NO REPORT" 
+}
+Eq_DAR_Val <- Eq_DAR[grepl("val_pde|ver_pde", tolower(Eq_DAR$Swab_Reason)), ]
+Eq_DAR_Mon <- Eq_DAR[grepl("mon_pde", tolower(Eq_DAR$Swab_Reason)), ]
+```
+---
+title: "`r dynamic_title`"
+---
+
+```{r OverallDataCondition_1}
+NumEventEq_DAR <- length(unique(Eq_DAR$CleaningEvent))
+NumEventEq_DAR_Val <- length(unique(Eq_DAR_Val$CleaningEvent))
+NumEventEq_DAR_Mon <- length(unique(Eq_DAR_Mon$CleaningEvent))
+```
+
+```{r DAR_condition}
+if(NumEventEq_DAR>1){
+Eq_DAR <- CleaningValidation::cv03_usl_unification(data=Eq_DAR,cleaning_event_col="CleaningEvent",residue_col="DAR",usl_col = "USL")
+summary_sentence_DAR_outlier <- cv_oos_outlier_comm(Eq_DAR, "DAR_Pct", "CleaningEvent", "USL_Pct")
+result_C_DAR<-cv07_1_median_control_chart(data=Eq_DAR,cleaning_event_col="CleaningEvent",residue_pct_median_col = "DAR_Pct_Median")
+Child_DAR=(summary_sentence_DAR_outlier$num_outliers>0)|(result_C_DAR$num_OOC>0)
+D0010 <- (length(unique(Eq_DAR$DAR))>1)&(Child_DAR==F)
+D0011 <- (length(unique(Eq_DAR$DAR))>1)&(Child_DAR==T)
+} else {
+  D0010 <-F
+  D0011 <- F
+}
+```
+
+```{r Condition_classification}
+D100 <- (NumEventEq_DAR<10)
+D010 <- (length(unique(Eq_DAR$DAR))==1)&(!D100)
+D0010 <- D0010&(!D100)
+D0011 <- D0011&(!D100)
+ST <- (NumEventEq_DAR_Mon==0)
+```
+
+```{r ,  child=if(ST & D100){'_cv01_STD100.qmd'}}
+```
+
+```{r ,  child=if(ST & D010){'_cv05_STD010.qmd'}}
+```
+
+```{r ,  child=if(ST & D0010){'_cv06_STD0010.qmd'}}
+```
+
+```{r ,  child=if(ST & D0011){'_cv07_STD0011.qmd'}}
+```
+
+```{r ,  child=if(!ST & D010){'_cv02_D010.qmd'}}
+```
+
+```{r ,  child=if(!ST & D0010){'_cv03_D0010.qmd'}}
+```
+
+```{r ,  child=if(!ST & D0011){'_cv04_D0011.qmd'}}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ---
 title: "SparkR::sql, DBI::dbExecute, and sparklyr::spark_sql"
 format: pdf
@@ -191,6 +550,7 @@ This gap is frustrating because parallelism is core to big data, and the lack of
 It would be great if sparklyr could introduce a function like spark_sql() or support parallel-safe DDL operations directly.
 
 Thanks in advance for any insight, workarounds, or best practices!
+
 
 
 
