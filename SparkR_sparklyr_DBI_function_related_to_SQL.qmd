@@ -1,3 +1,100 @@
+library(shiny)
+library(sparklyr)
+library(DBI)
+library(quarto)
+
+# Connect to Spark via Databricks once at startup
+sc <- sparklyr::spark_connect(method = "databricks")
+
+# Paths
+qmd_path <- "/Workspace/Users/xyang1@apotex.com/CV_SARWAS_LPDE/CV_SARWAS_LPDE_Templates/_cv08_1_Databricks_Low_PDE_Automation_Stage3.qmd"
+output_folder <- "/Workspace/Users/xyang1@apotex.com/CV_SARWAS_LPDE/Reports_and_Data_Stage3_LPDE/"
+data_folder <- "infolabs_dev"
+
+# Equipment lists
+LPDE_Weston_Stage3_Equipment   <- dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Weston_Stage3_Equipment")[, 1]
+LPDE_Signet_Stage3_Equipment   <- dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Signet_Stage3_Equipment")[, 1]
+LPDE_Garyray_Stage3_Equipment  <- dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Garyray_Stage3_Equipment")[, 1]
+LPDE_Etobicoke_Stage3_Equipment<- dbGetQuery(sc, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Etobicoke_Stage3_Equipment")[, 1]
+
+LPDE_Signet_Etobicoke <- c(
+  LPDE_Signet_Stage3_Equipment,
+  LPDE_Weston_Stage3_Equipment,
+  LPDE_Garyray_Stage3_Equipment,
+  LPDE_Etobicoke_Stage3_Equipment
+)
+
+# UI
+ui <- fluidPage(
+  titlePanel("Input Time Period for Report Generation"),
+  sidebarLayout(
+    sidebarPanel(
+      dateInput("Time_Period_Initial", "Start Date", value = Sys.Date() - 10000),
+      dateInput("Time_Period_End", "End Date", value = Sys.Date()),
+      actionButton("submit_time", "Submit Dates")
+    ),
+    mainPanel(
+      verbatimTextOutput("time_message")
+    )
+  )
+)
+
+# Server
+server <- function(input, output, session) {
+  observeEvent(input$submit_time, {
+    Time_Period_Initial <- as.character(input$Time_Period_Initial)
+    Time_Period_End <- as.character(input$Time_Period_End)
+
+    if (as.Date(Time_Period_Initial) > as.Date(Time_Period_End)) {
+      output$time_message <- renderText("Error: Start date cannot be later than the end date.")
+      return()
+    }
+
+    if (!file.exists(qmd_path)) {
+      output$time_message <- renderText(paste("Error: Quarto input file not found at", qmd_path))
+      return()
+    }
+
+    for (Report_Writing_Identifier in LPDE_Signet_Etobicoke) {
+      params <- list(
+        data_folder = data_folder,
+        Report_Writing_Identifier = Report_Writing_Identifier,
+        Time_Period_Initial = Time_Period_Initial,
+        Time_Period_End = Time_Period_End
+      )
+
+      output_file_name <- paste0(Report_Writing_Identifier, ".pdf")
+      default_output_file <- file.path(dirname(qmd_path), "_cv08_1_Databricks_Low_PDE_Automation_Stage3.pdf")
+      output_full_path <- file.path(output_folder, output_file_name)
+
+      tryCatch({
+        quarto_render(
+          input = qmd_path,
+          output_format = "pdf",
+          execute_params = params
+        )
+        if (file.exists(default_output_file)) {
+          file.rename(default_output_file, output_full_path)
+        } else {
+          stop("The default output file was not created by Quarto.")
+        }
+      }, error = function(e) {
+        output$time_message <- renderText(
+          paste("Error generating report for", Report_Writing_Identifier, ":", e$message)
+        )
+        return()
+      })
+    }
+
+    output$time_message <- renderText(paste("All reports have been generated and saved to", output_folder))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+
+
+
+
 # Connect to Spark via Databricks
 sc <- sparklyr::spark_connect(method = "databricks")
 qmd_path <- "/Workspace/Users/xyang1@apotex.com/CV_SARWAS_LPDE/CV_SARWAS_LPDE_Templates/_cv08_1_Databricks_Low_PDE_Automation_Stage3.qmd"
@@ -550,6 +647,7 @@ This gap is frustrating because parallelism is core to big data, and the lack of
 It would be great if sparklyr could introduce a function like spark_sql() or support parallel-safe DDL operations directly.
 
 Thanks in advance for any insight, workarounds, or best practices!
+
 
 
 
