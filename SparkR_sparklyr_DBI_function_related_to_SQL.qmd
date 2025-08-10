@@ -1,3 +1,550 @@
+library(shiny)
+reactiveConsole(TRUE)
+reactlog::reactlog_enable()
+
+# This is a better way to ensure packages are installed and at the correct version
+packages <- list(
+  AER = "1.2-13",    boot = "1.3-31",       chromote = "0.4.0", 
+  DBI = "1.2.3",     DiagrammeR = "1.0.11", DiagrammeRsvg = "0.1", 
+  dplyr = "1.1.4",   dunn.test = "1.3.6",   easyanova = "1.1.0", 
+  gt = "0.11.0",     forcats = "1.0.0",     formattable = "0.2.1", 
+  qcc = "2.7",       gridExtra = "2.3",     kableExtra = "1.4.0", 
+  knitr = "1.48",    lubridate = "1.9.3",   ggplot2 = "3.5.1",
+  lmtest = "0.9-40", openxlsx = "4.2.7.1",  odbc = "1.5.0", 
+  lme4 = "1.1-35.5", quarto = "1.4.4",      reactlog="1.1.1", 
+  rlang = "1.1.4",   rmarkdown = "2.28",    readxl = "1.3.1", 
+  rsvg = "2.6.1",    shiny = "1.9.1",       stringr = "1.5.1", 
+  tidyr = "1.3.1",   tinytex = "0.53",      VCA = "1.5.1",
+  webshot2 = "0.1.1")
+
+if (!requireNamespace("devtools", quietly = TRUE))
+{ install.packages("devtools") 
+}
+library(devtools)
+
+install_and_load <- function(package, version) {
+  if (!requireNamespace(package, quietly = TRUE) || packageVersion(package) < version) {
+    install_version(package, version = as.character(version))
+  }
+  library(package, character.only = TRUE)
+}
+for (pkg in names(packages)) { install_and_load(pkg, packages[[pkg]]) }
+library(CleaningValidation)
+
+# The following objects are expected from the parent script (Launcher.R).
+# For the script to be runnable, they would need to be defined here.
+# For example:
+Your_email_name <-"xyang1"
+install_folder <- paste0("C:\\Users\\", Your_email_name)
+conn1 <- DBI::dbConnect(
+  drv = odbc::databricks(),
+  httpPath = "/sql/1.0/warehouses/b2ef4b7a2c18fdcb",
+  workspace = "adb-4117502575300068.8.azuredatabricks.net",
+  authMech = 11, auth_flow = 2
+)
+data_folder<-"infolabs_dev"
+
+# This function generates and saves a list of equipment, which is then loaded.
+# It MUST run before the UI is defined, so the 'Sites' variable is available.
+### Stage 3
+generate_equipment_data_Stage3 <- function() {
+  LPDE_Weston_Stage3_Equipment <- dbGetQuery(conn1, paste0("SELECT * FROM ", data_folder, ".cv_processed.LPDE_Weston_Stage3_Equipment"))[, 1]
+  LPDE_Signet_Stage3_Equipment <- dbGetQuery(conn1, paste0("SELECT * FROM ", data_folder, ".cv_processed.LPDE_Signet_Stage3_Equipment"))[, 1]
+  LPDE_Garyray_Stage3_Equipment <- dbGetQuery(conn1, paste0("SELECT * FROM ", data_folder, ".cv_processed.LPDE_Garyray_Stage3_Equipment"))[, 1]
+  LPDE_Etobicoke_Stage3_Equipment <- dbGetQuery(conn1, paste0("SELECT * FROM ", data_folder, ".cv_processed.LPDE_Etobicoke_Stage3_Equipment"))[, 1]
+  
+  LPDE_Signet_Etobicoke_Stage3 <- c(LPDE_Weston_Stage3_Equipment, LPDE_Signet_Stage3_Equipment, LPDE_Garyray_Stage3_Equipment, LPDE_Etobicoke_Stage3_Equipment)
+  Sites_Stage3 <- c("LPDE_Weston_Stage3_Equipment", "LPDE_Signet_Stage3_Equipment", "LPDE_Garyray_Stage3_Equipment", "LPDE_Etobicoke_Stage3_Equipment")
+  
+  save(LPDE_Weston_Stage3_Equipment, LPDE_Signet_Stage3_Equipment, LPDE_Garyray_Stage3_Equipment, LPDE_Etobicoke_Stage3_Equipment,
+       LPDE_Signet_Etobicoke_Stage3, Sites_Stage3,
+       file = paste0(install_folder, "\\CV_SARWAS_LPDE\\LowPDE_Templates\\_CV_Low_PDE_List_of_Equipment3.RData"))
+}
+generate_equipment_data_Stage3()
+load(paste0(install_folder, "\\CV_SARWAS_LPDE\\LowPDE_Templates\\_CV_Low_PDE_List_of_Equipment3.RData"))
+
+### Stage 2
+generate_equipment_data_Stage2 <- function() {
+  LPDE_Weston_Stage2_Equipment <- dbGetQuery(conn1, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Weston_Stage2_Equipment")[, 1]
+  LPDE_Signet_Stage2_Equipment <- dbGetQuery(conn1, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Signet_Stage2_Equipment")[, 1]
+  LPDE_Garyray_Stage2_Equipment <- dbGetQuery(conn1, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Garyray_Stage2_Equipment")[, 1]
+  LPDE_Etobicoke_Stage2_Equipment <- dbGetQuery(conn1, "SELECT * FROM infolabs_dev.cv_processed.LPDE_Etobicoke_Stage2_Equipment")[, 1]
+  
+  LPDE_Signet_Etobicoke_Stage2 <- c(LPDE_Weston_Stage2_Equipment, LPDE_Signet_Stage2_Equipment, LPDE_Garyray_Stage2_Equipment, LPDE_Etobicoke_Stage2_Equipment)
+  Sites_Stage2 <- c("LPDE_Weston_Stage2_Equipment", "LPDE_Signet_Stage2_Equipment", "LPDE_Garyray_Stage2_Equipment", "LPDE_Etobicoke_Stage2_Equipment")
+  
+  save(LPDE_Weston_Stage2_Equipment, LPDE_Signet_Stage2_Equipment, LPDE_Garyray_Stage2_Equipment, LPDE_Etobicoke_Stage2_Equipment,
+       LPDE_Signet_Etobicoke_Stage2, Sites_Stage2,
+       file = paste0(install_folder, "\\CV_SARWAS_LPDE\\LowPDE_Templates\\_CV_Low_PDE_List_of_Equipment2.RData"))
+}
+generate_equipment_data_Stage2()
+load(paste0(install_folder, "\\CV_SARWAS_LPDE\\LowPDE_Templates\\_CV_Low_PDE_List_of_Equipment2.RData"))
+
+#========================
+# Stage 2 UI & Server
+#========================
+stage2_ui <- tabPanel(
+  "Stage 2",
+  # --- Paste your Stage 2 UI code here ---
+  # Make sure to rename input/output IDs with prefix 'stage2_'
+  
+    tags$head(
+      tags$style(HTML("
+    .titlePanel { background-color: #337ab7; color: white; font-weight: bold; text-align: center; }
+    #generate_report, #download_report, #download_data, #generate_data {
+      color: white; background: linear-gradient(#3E8CCF, #337ab7); font-weight: bold;
+      border: 1px solid #2c6ca3; border-radius: 5px; padding: 10px; cursor: pointer;
+      box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.4), 6px 6px 10px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.3s, box-shadow 0.3s; width: 100%; margin-bottom: 15px;
+    }
+    #generate_report:hover, #download_report:hover, #download_data:hover, #generate_data:hover {
+      background-color: #2c6ca3; box-shadow: 2px 2px 4px #2c6ca3;
+    }
+    .progress-text { color: #3E8CCF; font-weight: bold; text-align: center; margin-bottom: 15px; }
+    .button-container {
+      display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; gap: 15px;
+    }
+  "))
+  ),
+    
+    div(class = "titlePanel", titlePanel("CV_SARWAS_Low_PDE_Stage2")),
+    
+    sidebarLayout(
+      sidebarPanel(
+        selectInput("site", "Select Site", choices = Sites_Stage2),
+        uiOutput("equipment_dropdown"),
+        dateInput("Time_Period_Initial", "Start Date", value = Sys.Date() - 10000),
+        dateInput("Time_Period_End", "End Date", value = Sys.Date()),
+        actionButton("generate_report", HTML("<b>Generate Equipment Report</b>")),
+        verbatimTextOutput("progress_report"),
+        downloadButton("download_report", "Download Equipment Report"),
+        actionButton("generate_data", HTML("<b>Generate Equipment Excel Data</b>")),
+        verbatimTextOutput("progress_data"),
+        downloadButton("download_data", "Download Equipment Excel Data")
+      ),
+      
+      mainPanel(
+        HTML("<p><b>To Generate And Download Annual Statistical Report:</b><br>
+            1. Select a site.<br>
+            2. Choose a piece of equipment.<br>
+            3. Select the time period.<br>
+            4. Click 'Generate Equipment Report' and wait for 'Progress: 100% Done'.<br>
+            5. Click 'Download Equipment Report' to get the report.<br><br>
+            <b>To Generate And Download Equipment Excel Data:</b><br>
+            1. Select a site.<br>
+            2. Choose a piece of equipment.<br>
+            3. Select the time period.<br>
+            4. Click 'Generate Equipment Excel Data' and wait for 'Progress: 100% Done'.<br>
+            5. Click 'Download Equipment Excel Data' to download.<br><br>"),
+        
+        textAreaInput("maintenance_contact", "Contact Information", value = "xyang1@apotex.com, Tel:416-8888-888")
+      )
+    )
+  )
+
+stage2_server <- function(input, output, session) {
+  # --- Paste your Stage 2 server code here ---
+  # Keep quarto_render() and Excel download logic unchanged
+  # Rename all input/output IDs to match 'stage2_' versions in the UI
+  
+    output$equipment_dropdown <- renderUI({
+      site_name <- input$site
+      equipment_list <- switch(site_name,
+                               "LPDE_Weston_Stage2_Equipment"=LPDE_Weston_Stage2_Equipment,
+                               "LPDE_Signet_Stage2_Equipment"=LPDE_Signet_Stage2_Equipment,
+                               "LPDE_Garyray_Stage2_Equipment"=LPDE_Garyray_Stage2_Equipment,
+                               "LPDE_Etobicoke_Stage2_Equipment"=LPDE_Etobicoke_Stage2_Equipment
+      )
+      selectInput("equipment", "Select Equipment", choices = equipment_list, multiple = FALSE)
+    })
+    
+    Report_Writing_Identifier <- reactiveVal(NULL)
+    
+    observe({
+      req(input$equipment)
+      Report_Writing_Identifier(input$equipment)
+    })
+    
+    observeEvent(input$generate_report, {
+      equipment_names <- input$equipment
+      Time_Period_Initial <- as.character(input$Time_Period_Initial)
+      Time_Period_End <- as.character(input$Time_Period_End)
+      original_working_directory <- paste0(install_folder, "\\CV_SARWAS_LPDE\\LowPDE_Templates")
+      withProgress(
+        session = session,
+        message = 'Generating Reports...',
+        detail = '',
+        value = 0,
+        {for (i in seq_along(equipment_names)) {
+          Report_Writing_Identifier <- equipment_names[i]
+          Sys.setenv(REPORT_WRITING_IDENTIFIER = Report_Writing_Identifier)
+          Sys.setenv(TIME_PERIOD_INITIAL = Time_Period_Initial)
+          Sys.setenv(TIME_PERIOD_END = Time_Period_End)
+          Sys.setenv(INSTALL_FOLDER=install_folder )
+          output_file <- paste0("0", equipment_names[i], ".pdf")
+          setwd(original_working_directory)
+          quarto::quarto_render(
+            file.path(original_working_directory, "_cv08_2_Low_PDE_Automation_Stage2.qmd"),
+            output_file = output_file
+          )
+          setwd(original_working_directory)
+          new_output_file <- file.path(paste0(install_folder, "\\cv_sarwas_lpde\\Reports_and_Data_Stage2_LPDE\\", equipment_names[i], ".pdf"))
+          file.rename(output_file, new_output_file)
+          
+          incProgress(1 / length(equipment_names), detail = paste('Generated report for', equipment_names[i]))
+        }
+          
+          setProgress(1, message = 'Done!')
+        } ) })
+    
+    output$download_report <- downloadHandler(
+      filename = function() {
+        paste("0", input$equipment, ".pdf", sep = "")
+      },
+      content = function(file) {
+        pdf_files <- file.path(paste0(install_folder,"\\CV_SARWAS_LPDE\\Reports_and_Data_Stage2_LPDE\\", input$equipment, ".pdf"))
+        pdftools::pdf_combine(pdf_files, output = file)
+      }
+    )
+    
+    output$progress_report <- renderText({
+      if (!isTruthy(input$generate_report)) {
+        return("Progress: 0% Done")
+      }
+      "Progress: 100% Done"
+    })
+    
+    current_queries <- reactiveVal(NULL)
+    queries <- reactive({
+      equipment_name <- as.character(Report_Writing_Identifier())
+      list(
+        DAR = sprintf("SELECT * FROM infolabs_dev.cv_processed.LPDE_Stage2_signet_garyray_weston_etobicoke WHERE DataSetName='%s'", equipment_name)
+        
+      )
+    })
+    
+    observeEvent(input$generate_data, {
+      Time_Period_Initial <- as.Date(input$Time_Period_Initial, format = "%Y-%m-%d")
+      Time_Period_End <- as.Date(input$Time_Period_End, format = "%Y-%m-%d")
+      
+      withProgress(
+        session = session,
+        message = 'Generating Data...',
+        detail = '',
+        value = 0,
+        {
+          Report_Writing_Identifier <- input$equipment[1]
+          Sys.setenv(REPORT_WRITING_IDENTIFIER = Report_Writing_Identifier)
+          current_queries_val <- queries()
+          total_queries <- length(current_queries_val)
+          wb <- openxlsx::createWorkbook()
+          for (i in seq_along(current_queries_val)) {
+            sheet_name <- names(current_queries_val)[i]
+            openxlsx::addWorksheet(wb, sheet_name)
+            data_frame <- tryCatch({
+              dbGetQuery(conn1, current_queries_val[[i]])
+            }, error = function(e) {
+              return(data.frame())
+            })
+            if (!inherits(data_frame$Sampling_Date, "POSIXct")) {
+              data_frame$Sampling_Date <- as.POSIXct(data_frame$Sampling_Date)
+            }
+            
+            # Corrected logical error to include the entire end date
+            filtered_data <- data_frame[data_frame$Sampling_Date >= Time_Period_Initial &
+                                          data_frame$Sampling_Date < (Time_Period_End+1), ]
+            
+            openxlsx::writeData(wb, sheet = sheet_name, x = filtered_data)
+            incProgress(1 / total_queries, detail = sprintf('%d/%d queries completed', i, total_queries))
+          }
+          xlsx_file <- file.path(paste0(install_folder, "\\CV_SARWAS_LPDE\\Reports_and_Data_Stage2_LPDE\\", input$equipment[1], ".xlsx"))
+          #xlsx_file <- file.path("C:\\Users\\xyang1\\CV_SARWAS_LPDE\\Reports_and_Data_Stage2_LPDE", paste0(input$equipment[1], ".xlsx"))
+          openxlsx::saveWorkbook(wb, xlsx_file, overwrite = TRUE)
+          incProgress(1, detail = 'Done!')
+        }
+      )
+    })
+    
+    output$download_data <- downloadHandler(
+      filename = function() {
+        paste0(input$equipment[1], ".xlsx")
+      },
+      content = function(file) {
+        xlsx_file <- file.path(paste0(install_folder, "\\CV_SARWAS_LPDE\\Reports_and_Data_Stage2_LPDE\\", input$equipment[1], ".xlsx"))
+        #xlsx_file <- file.path(paste0(install_folder, "\\CV_SARWAS_LPDE\\Reports_and_Data_Stage2_LPDE"), paste0(input$equipment[1], ".xlsx"))
+        file.copy(xlsx_file, file)
+      }
+    )
+    
+    observe({
+      current_queries_val <- current_queries()
+      
+      if (input$generate_data > 0 && !is.null(current_queries_val)) {
+        withProgress(
+          session = session,
+          message = 'Generating Data for Tabs...',
+          detail = '',
+          value = 0,
+          {
+            for (i in seq_along(current_queries_val)) {
+              incProgress(1/length(current_queries_val), detail = sprintf('%d/%d tabs completed', i, length(current_queries_val)))
+              Sys.sleep(0.1)
+            }
+            incProgress(1, message = 'Data Generation Complete!')
+          })}})
+    
+    output$progress_data <- renderText({
+      if (!isTruthy(input$generate_data)) {
+        return("Progress: 0% Done")
+      }
+      "Progress: 100% Done"
+    })}
+
+
+#========================
+# Stage 3 UI & Server
+#========================
+stage3_ui <- tabPanel(
+  "Stage 3",
+  # --- Paste your Stage 3 UI code here ---
+  # Make sure to rename input/output IDs with prefix 'stage3_'
+  tags$head(
+    tags$style(HTML("
+    .titlePanel { background-color: #337ab7; color: white; font-weight: bold; text-align: center; }
+    #generate_report, #download_report, #download_data, #generate_data {
+      color: white; background: linear-gradient(#3E8CCF, #337ab7); font-weight: bold;
+      border: 1px solid #2c6ca3; border-radius: 5px; padding: 10px; cursor: pointer;
+      box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.4), 6px 6px 10px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.3s, box-shadow 0.3s; width: 100%; margin-bottom: 15px;
+    }
+    #generate_report:hover, #download_report:hover, #download_data:hover, #generate_data:hover {
+      background-color: #2c6ca3; box-shadow: 2px 2px 4px #2c6ca3;
+    }
+    .progress-text { color: #3E8CCF; font-weight: bold; text-align: center; margin-bottom: 15px; }
+    .button-container {
+      display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; gap: 15px;
+    }
+  "))
+  ) ,
+  
+  div(class = "titlePanel", titlePanel("CV_SARWAS_Low_PDE_Stage3")),
+  
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("site", "Select Site", choices = Sites_Stage3),
+      uiOutput("equipment_dropdown"),
+      dateInput("Time_Period_Initial", "Start Date", value = Sys.Date() - 10000),
+      dateInput("Time_Period_End", "End Date", value = Sys.Date()),
+      actionButton("generate_report", HTML("<b>Generate Equipment Report</b>")),
+      verbatimTextOutput("progress_report"),
+      downloadButton("download_report", "Download Equipment Report"),
+      actionButton("generate_data", HTML("<b>Generate Equipment Excel Data</b>")),
+      verbatimTextOutput("progress_data"),
+      downloadButton("download_data", "Download Equipment Excel Data")
+    ),
+    
+    mainPanel(
+      HTML("<p><b>To Generate And Download Annual Statistical Report:</b><br>
+            1. Select a site.<br>
+            2. Choose a piece of equipment.<br>
+            3. Select the time period.<br>
+            4. Click 'Generate Equipment Report' and wait for 'Progress: 100% Done'.<br>
+            5. Click 'Download Equipment Report' to get the report.<br><br>
+            <b>To Generate And Download Equipment Excel Data:</b><br>
+            1. Select a site.<br>
+            2. Choose a piece of equipment.<br>
+            3. Select the time period.<br>
+            4. Click 'Generate Equipment Excel Data' and wait for 'Progress: 100% Done'.<br>
+            5. Click 'Download Equipment Excel Data' to download.<br><br>"),
+      
+      textAreaInput("maintenance_contact", "Contact Information", value = "xyang1@apotex.com, Tel:416-8888-888")
+    )
+  )
+)
+
+stage3_server <- function(input, output, session) {
+  # --- Paste your Stage 3 server code here ---
+  # Keep quarto_render() and Excel download logic unchanged
+  # Rename all input/output IDs to match 'stage3_' versions in the UI
+
+    output$equipment_dropdown <- renderUI({
+      site_name <- input$site
+      equipment_list <- switch(site_name,
+                               "LPDE_Weston_Stage3_Equipment"=LPDE_Weston_Stage3_Equipment,
+                               "LPDE_Signet_Stage3_Equipment"=LPDE_Signet_Stage3_Equipment,
+                               "LPDE_Garyray_Stage3_Equipment"=LPDE_Garyray_Stage3_Equipment,
+                               "LPDE_Etobicoke_Stage3_Equipment"=LPDE_Etobicoke_Stage3_Equipment
+      )
+      selectInput("equipment", "Select Equipment", choices = equipment_list, multiple = FALSE)
+    })
+    
+    Report_Writing_Identifier <- reactiveVal(NULL)
+    
+    observe({
+      req(input$equipment)
+      Report_Writing_Identifier(input$equipment)
+    })
+    
+    observeEvent(input$generate_report, {
+      equipment_names <- input$equipment
+      Time_Period_Initial <- as.character(input$Time_Period_Initial)
+      Time_Period_End <- as.character(input$Time_Period_End)
+      original_working_directory <- paste0(install_folder, "\\CV_SARWAS_LPDE\\LowPDE_Templates")
+      withProgress(
+        session = session,
+        message = 'Generating Reports...',
+        detail = '',
+        value = 0,
+        {for (i in seq_along(equipment_names)) {
+          Report_Writing_Identifier <- equipment_names[i]
+          Sys.setenv(REPORT_WRITING_IDENTIFIER = Report_Writing_Identifier)
+          Sys.setenv(TIME_PERIOD_INITIAL = Time_Period_Initial)
+          Sys.setenv(TIME_PERIOD_END = Time_Period_End)
+          Sys.setenv(INSTALL_FOLDER=install_folder )
+          output_file <- paste0("0", equipment_names[i], ".pdf")
+          setwd(original_working_directory)
+          quarto::quarto_render(
+            file.path(original_working_directory, "_cv08_1_Low_PDE_Automation_Stage3.qmd"),
+            output_file = output_file
+          )
+          setwd(original_working_directory)
+          new_output_file <- file.path(paste0(install_folder, "\\cv_sarwas_lpde\\Reports_and_Data_Stage3_LPDE\\", equipment_names[i], ".pdf"))
+          file.rename(output_file, new_output_file)
+          
+          incProgress(1 / length(equipment_names), detail = paste('Generated report for', equipment_names[i]))
+        }
+          
+          setProgress(1, message = 'Done!')
+        } ) })
+    
+    output$download_report <- downloadHandler(
+      filename = function() {
+        paste("0", input$equipment, ".pdf", sep = "")
+      },
+      content = function(file) {
+        pdf_files <- file.path(paste0(install_folder,"\\CV_SARWAS_LPDE\\Reports_and_Data_Stage3_LPDE\\", input$equipment, ".pdf"))
+        pdftools::pdf_combine(pdf_files, output = file)
+      }
+    )
+    
+    output$progress_report <- renderText({
+      if (!isTruthy(input$generate_report)) {
+        return("Progress: 0% Done")
+      }
+      "Progress: 100% Done"
+    })
+    
+    current_queries <- reactiveVal(NULL)
+    queries <- reactive({
+      equipment_name <- as.character(Report_Writing_Identifier())
+      list(
+        DAR = sprintf("SELECT * FROM infolabs_dev.cv_processed.LPDE_Stage3_signet_garyray_weston_etobicoke WHERE DataSetName='%s'", equipment_name)
+        
+      )
+    })
+    
+    observeEvent(input$generate_data, {
+      Time_Period_Initial <- as.Date(input$Time_Period_Initial, format = "%Y-%m-%d")
+      Time_Period_End <- as.Date(input$Time_Period_End, format = "%Y-%m-%d")
+      
+      withProgress(
+        session = session,
+        message = 'Generating Data...',
+        detail = '',
+        value = 0,
+        {
+          Report_Writing_Identifier <- input$equipment[1]
+          Sys.setenv(REPORT_WRITING_IDENTIFIER = Report_Writing_Identifier)
+          current_queries_val <- queries()
+          total_queries <- length(current_queries_val)
+          wb <- openxlsx::createWorkbook()
+          for (i in seq_along(current_queries_val)) {
+            sheet_name <- names(current_queries_val)[i]
+            openxlsx::addWorksheet(wb, sheet_name)
+            data_frame <- tryCatch({
+              dbGetQuery(conn1, current_queries_val[[i]])
+            }, error = function(e) {
+              return(data.frame())
+            })
+            if (!inherits(data_frame$Sampling_Date, "POSIXct")) {
+              data_frame$Sampling_Date <- as.POSIXct(data_frame$Sampling_Date)
+            }
+            
+            # Corrected logical error to include the entire end date
+            filtered_data <- data_frame[data_frame$Sampling_Date >= Time_Period_Initial &
+                                          data_frame$Sampling_Date < (Time_Period_End+1), ]
+            
+            openxlsx::writeData(wb, sheet = sheet_name, x = filtered_data)
+            incProgress(1 / total_queries, detail = sprintf('%d/%d queries completed', i, total_queries))
+          }
+          xlsx_file <- file.path(paste0(install_folder, "\\CV_SARWAS_LPDE\\Reports_and_Data_Stage3_LPDE\\", input$equipment[1], ".xlsx"))
+          #xlsx_file <- file.path("C:\\Users\\xyang1\\CV_SARWAS_LPDE\\Reports_and_Data_Stage3_LPDE", paste0(input$equipment[1], ".xlsx"))
+          openxlsx::saveWorkbook(wb, xlsx_file, overwrite = TRUE)
+          incProgress(1, detail = 'Done!')
+        }
+      )
+    })
+    
+    output$download_data <- downloadHandler(
+      filename = function() {
+        paste0(input$equipment[1], ".xlsx")
+      },
+      content = function(file) {
+        xlsx_file <- file.path(paste0(install_folder, "\\CV_SARWAS_LPDE\\Reports_and_Data_Stage3_LPDE\\", input$equipment[1], ".xlsx"))
+        #xlsx_file <- file.path(paste0(install_folder, "\\CV_SARWAS_LPDE\\Reports_and_Data_Stage3_LPDE"), paste0(input$equipment[1], ".xlsx"))
+        file.copy(xlsx_file, file)
+      }
+    )
+    
+    observe({
+      current_queries_val <- current_queries()
+      
+      if (input$generate_data > 0 && !is.null(current_queries_val)) {
+        withProgress(
+          session = session,
+          message = 'Generating Data for Tabs...',
+          detail = '',
+          value = 0,
+          {
+            for (i in seq_along(current_queries_val)) {
+              incProgress(1/length(current_queries_val), detail = sprintf('%d/%d tabs completed', i, length(current_queries_val)))
+              Sys.sleep(0.1)
+            }
+            incProgress(1, message = 'Data Generation Complete!')
+          })}})
+    
+    output$progress_data <- renderText({
+      if (!isTruthy(input$generate_data)) {
+        return("Progress: 0% Done")
+      }
+      "Progress: 100% Done"
+    })}
+
+
+#========================
+# Main UI & Server
+#========================
+ui <- navbarPage(
+  "Cleaning Validation App",
+  stage2_ui,
+  stage3_ui
+)
+
+server <- function(input, output, session) {
+  callModule(stage2_server, "stage2")
+  callModule(stage3_server, "stage3")
+}
+
+#========================
+# Run the app
+#========================
+shinyApp(ui, server)
+
+
+
+
+
+
 #Stage3
 # -------------------------------------------------------------------------
 # Global Setup: Define dependencies and objects needed by the entire app
@@ -1364,6 +1911,7 @@ This gap is frustrating because parallelism is core to big data, and the lack of
 It would be great if sparklyr could introduce a function like spark_sql() or support parallel-safe DDL operations directly.
 
 Thanks in advance for any insight, workarounds, or best practices!
+
 
 
 
